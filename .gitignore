@@ -1,0 +1,7 @@
+# Claude Code の作業用設定（公開しない）
+.claude/
+
+# OS が作るファイル
+Thumbs.db
+desktop.ini
+.DS_Store

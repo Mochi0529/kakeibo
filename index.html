@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f6f5e">
+  <title>家計簿</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <h1>家計簿</h1>
+      <!-- 画面の切り替え（スマホでは画面下、PCではここ） -->
+      <nav class="tabbar" id="tabbar" aria-label="画面の切り替え">
+        <a href="#home" data-view="home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+          <span>ホーム</span>
+        </a>
+        <a href="#input" data-view="input" class="tab-input">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+          <span>入力</span>
+        </a>
+        <a href="#history" data-view="history">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+          <span>履歴</span>
+        </a>
+        <a href="#stats" data-view="stats">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+          <span>統計</span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- 月の切り替え（入力画面以外で表示） -->
+    <div class="month-nav" id="month-nav">
+      <div class="month-switch">
+        <button type="button" class="icon-btn" id="prev-month" aria-label="前の月">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <!-- 月の表示。タップすると月を選べる（対応しているブラウザのみ） -->
+        <label class="month-label-wrap">
+          <span class="month-label" id="month-label"></span>
+          <input type="month" id="month-picker" class="month-picker" aria-label="月を選ぶ" tabindex="-1">
+        </label>
+        <button type="button" class="icon-btn" id="next-month" aria-label="次の月">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+      <button type="button" class="today-btn" id="this-month" hidden>今月</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ==================== ホーム ==================== -->
+    <section class="view" id="view-home" data-view="home">
+      <div class="home-grid">
+        <div class="home-col">
+          <div class="hero">
+            <div class="hero-label" id="hero-label">今月の支出</div>
+            <div class="hero-value" id="month-total">¥0</div>
+            <div class="hero-sub">
+              <span id="month-count">0件</span>
+              <span id="hero-compare"></span>
+            </div>
+            <div class="hero-stats">
+              <div><span>1日平均</span><strong id="hero-daily">¥0</strong></div>
+              <div><span>いちばん多い</span><strong id="hero-top">—</strong></div>
+            </div>
+          </div>
+
+          <div class="card" id="breakdown-card">
+            <div class="card-head">
+              <h2>カテゴリ内訳</h2>
+              <a href="#stats" class="link-btn">グラフで見る</a>
+            </div>
+            <div class="stackbar" id="stackbar" role="img"></div>
+            <ul class="legend-list" id="breakdown-list"></ul>
+          </div>
+        </div>
+
+        <div class="card" id="recent-card">
+          <div class="card-head">
+            <h2>最近の支出</h2>
+            <a href="#history" class="link-btn">すべて見る</a>
+          </div>
+          <ul class="recent-list" id="recent-list"></ul>
+          <div class="home-empty" id="home-empty" hidden>
+            <p>この月の支出はまだありません</p>
+            <a href="#input" class="btn btn-primary">支出を入力する</a>
+          </div>
+        </div>
+
+        <div class="card" id="upcoming-card" hidden>
+          <div class="card-head">
+            <h2>近日のサブスク支払い</h2>
+            <a href="#subs" class="link-btn">管理する</a>
+          </div>
+          <ul class="upcoming-list" id="upcoming-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 入力 ==================== -->
+    <section class="view" id="view-input" data-view="input" hidden>
+      <div class="seg seg-2" id="input-tabs" role="tablist" aria-label="入力する内容">
+        <a href="#input" role="tab" data-panel="expense">支出</a>
+        <a href="#subs" role="tab" data-panel="subs">サブスク（定期払い）</a>
+      </div>
+
+      <div class="panel" id="panel-expense" data-panel="expense">
+      <div class="card" id="form-card">
+        <h2 id="form-title">支出を入力</h2>
+        <form id="expense-form" novalidate>
+          <label class="field amount-field">
+            <span>金額</span>
+            <div class="amount-box">
+              <span class="yen-mark" aria-hidden="true">¥</span>
+              <input type="text" id="f-amount" inputmode="numeric" autocomplete="off" placeholder="0" required>
+            </div>
+          </label>
+
+          <fieldset class="field">
+            <legend>カテゴリ</legend>
+            <div class="chips" id="f-category" role="radiogroup"></div>
+          </fieldset>
+
+          <div class="field">
+            <label for="f-date">日付</label>
+            <div class="date-stepper">
+              <button type="button" class="step-btn" id="date-prev" aria-label="前の日">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+              </button>
+              <input type="date" id="f-date" required>
+              <button type="button" class="step-btn" id="date-next" aria-label="次の日">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>メモ</span>
+            <input type="text" id="f-memo" maxlength="100" placeholder="例：スーパーで夕飯の材料" autocomplete="off">
+          </label>
+
+          <div class="field">
+            <label for="f-tag-input">タグ（任意・複数OK）</label>
+            <div class="tag-editor" id="tag-editor">
+              <span class="tag-list" id="f-tags"></span>
+              <input type="text" id="f-tag-input" maxlength="20" placeholder="例：旅行（Enterで追加）" autocomplete="off" enterkeyhint="enter">
+            </div>
+            <div class="tag-suggest" id="tag-suggest" aria-label="よく使うタグ"></div>
+          </div>
+
+          <p class="error" id="form-error" role="alert" hidden></p>
+
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" id="cancel-edit" hidden>キャンセル</button>
+            <button type="submit" class="btn btn-primary" id="submit-btn">追加する</button>
+          </div>
+        </form>
+      </div>
+      </div>
+
+      <div class="panel" id="panel-subs" data-panel="subs" hidden>
+        <div class="sub-summary">
+          <div class="sub-summary-main">
+            <span>サブスクの月額合計</span>
+            <strong id="sub-monthly">¥0</strong>
+          </div>
+          <div class="sub-summary-row">
+            <div><span>年額にすると</span><strong id="sub-yearly">¥0</strong></div>
+            <div><span>登録数</span><strong id="sub-count">0件</strong></div>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="sub-add-btn">＋ サブスクを追加</button>
+
+        <div class="card" id="sub-form-card" hidden>
+          <h2 id="sub-form-title">サブスクを追加</h2>
+          <form id="sub-form" novalidate>
+            <label class="field">
+              <span>サービス名</span>
+              <input type="text" id="s-name" maxlength="40" placeholder="例：動画配信サービス" autocomplete="off" required>
+            </label>
+            <label class="field">
+              <span>1回の支払額</span>
+              <div class="amount-box small">
+                <span class="yen-mark" aria-hidden="true">¥</span>
+                <input type="text" id="s-amount" inputmode="numeric" autocomplete="off" placeholder="0" required>
+              </div>
+            </label>
+            <div class="sub-form-row">
+              <label class="field">
+                <span>カテゴリ</span>
+                <select id="s-category"></select>
+              </label>
+              <label class="field">
+                <span>支払いの周期</span>
+                <select id="s-cycle">
+                  <option value="monthly">毎月</option>
+                  <option value="yearly">毎年</option>
+                </select>
+              </label>
+            </div>
+            <label class="field">
+              <span>最初の支払日（この日を基準に毎月・毎年）</span>
+              <input type="date" id="s-start" required>
+            </label>
+            <p class="hint" id="s-hint"></p>
+            <p class="error" id="s-error" role="alert" hidden></p>
+            <div class="actions">
+              <button type="button" class="btn btn-ghost" id="s-cancel">キャンセル</button>
+              <button type="submit" class="btn btn-primary" id="s-submit">登録する</button>
+            </div>
+          </form>
+        </div>
+
+        <ul class="sub-list" id="sub-list"></ul>
+        <p class="empty" id="sub-empty">まだ登録されていません。<br>登録すると、支払日に自動で支出に記録されます。</p>
+      </div>
+    </section>
+
+    <!-- ==================== 履歴 ==================== -->
+    <section class="view" id="view-history" data-view="history" hidden>
+      <div class="card list-tools" id="list-tools" hidden>
+        <div class="filter-row">
+          <select id="filter-category" aria-label="カテゴリで絞り込み">
+            <option value="">すべてのカテゴリ</option>
+          </select>
+          <select id="filter-tag" aria-label="タグで絞り込み">
+            <option value="">すべてのタグ</option>
+          </select>
+        </div>
+        <input type="search" id="filter-text" placeholder="メモ・タグを検索" aria-label="メモ・タグを検索" autocomplete="off">
+        <!-- 期間：よく使う範囲はワンタップ、細かく決めたいときだけ日付を入れる -->
+        <div class="range-chips" id="range-chips" role="radiogroup" aria-label="期間"></div>
+        <div class="date-range" id="custom-range" hidden>
+          <label class="range-input">
+            <span>開始日</span>
+            <input type="date" id="filter-from">
+          </label>
+          <span class="range-sep" aria-hidden="true">〜</span>
+          <label class="range-input">
+            <span>終了日</span>
+            <input type="date" id="filter-to">
+          </label>
+        </div>
+        <div class="tools-row">
+          <span id="filter-summary"></span>
+          <span class="tools-buttons">
+            <button type="button" class="link-btn" id="filter-clear" hidden>絞り込みを解除</button>
+            <button type="button" class="btn-small" id="select-mode">選択</button>
+          </span>
+        </div>
+      </div>
+
+      <div id="expense-list"></div>
+      <p class="empty" id="empty-msg" hidden></p>
+    </section>
+
+    <!-- ==================== 統計 ==================== -->
+    <section class="view" id="view-stats" data-view="stats" hidden>
+      <div class="stat-tiles">
+        <div class="stat-tile"><span>月の合計</span><strong id="stat-total">¥0</strong></div>
+        <div class="stat-tile"><span>前月比</span><strong id="stat-compare">—</strong></div>
+        <div class="stat-tile"><span>1日平均</span><strong id="stat-daily">¥0</strong></div>
+      </div>
+
+      <div class="card" id="chart-card" hidden>
+        <div class="seg" id="chart-tabs" role="tablist" aria-label="グラフの種類">
+          <button type="button" role="tab" data-type="category">カテゴリ別</button>
+          <button type="button" role="tab" data-type="tag">タグ別</button>
+          <button type="button" role="tab" data-type="daily">日別</button>
+          <button type="button" role="tab" data-type="monthly">月別推移</button>
+        </div>
+        <p class="chart-note" id="chart-note" hidden></p>
+        <div class="chart-wrap" id="chart-wrap">
+          <canvas id="chart-canvas" role="img"></canvas>
+        </div>
+        <p class="chart-empty" id="chart-empty" hidden></p>
+        <table class="cat-table" id="chart-table">
+          <thead id="chart-thead"></thead>
+          <tbody id="chart-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="stats-empty" hidden>まだ支出がありません</p>
+    </section>
+
+  </main>
+
+  <!-- 選択モード中に画面下に出るバー -->
+  <div class="bulk-bar" id="bulk-bar" hidden>
+    <div class="bulk-inner">
+      <button type="button" class="btn-small" id="select-all">すべて選択</button>
+      <span class="bulk-count" id="selected-count">0件選択</span>
+      <button type="button" class="btn-small btn-danger" id="bulk-delete" disabled>削除</button>
+      <button type="button" class="btn-small" id="select-done">完了</button>
+    </div>
+  </div>
+
+  <!-- 保存したときのお知らせ -->
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- グラフ用ライブラリ（ネットに繋がっていないときは表だけ表示される） -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- storage.js（データ層）→ categories.js → charts.js → subs.js → app.js（画面）の順で読み込む -->
+  <script src="js/storage.js"></script>
+  <script src="js/categories.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/subs.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -11,6 +11,11 @@
   <header class="app-header">
     <div class="header-inner">
       <h1>家計簿</h1>
+      <!-- 同期の状態とアカウント（クラウド保存のときだけ表示） -->
+      <button type="button" class="account-btn" id="account-btn" hidden aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5z"/></svg>
+        <span id="sync-label">同期中</span>
+      </button>
       <!-- 画面の切り替え（スマホでは画面下、PCではここ） -->
       <nav class="tabbar" id="tabbar" aria-label="画面の切り替え">
         <a href="#home" data-view="home">
@@ -50,6 +55,48 @@
       <button type="button" class="today-btn" id="this-month" hidden>今月</button>
     </div>
   </header>
+
+  <!-- オフラインのお知らせ -->
+  <div class="offline-banner" id="offline-banner" role="status" hidden>
+    オフラインです。表示しているのは最後に読み込んだ内容で、追加・編集はできません。
+  </div>
+
+  <!-- ログイン画面（クラウド保存のとき、ログインしていなければ表示） -->
+  <section class="login-screen" id="login-screen" hidden>
+    <div class="card login-card">
+      <h2>ログイン</h2>
+      <p class="login-note">家計簿のデータはクラウドに保存されています。登録したメールアドレスとパスワードでログインしてください。</p>
+      <form id="login-form" novalidate>
+        <label class="field">
+          <span>メールアドレス</span>
+          <input type="email" id="login-email" autocomplete="username" inputmode="email" required>
+        </label>
+        <label class="field">
+          <span>パスワード</span>
+          <input type="password" id="login-password" autocomplete="current-password" required>
+        </label>
+        <p class="error" id="login-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary" id="login-submit">ログイン</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- アカウントの小窓 -->
+  <dialog class="account-dialog" id="account-dialog" aria-labelledby="account-title">
+    <h2 id="account-title">アカウント</h2>
+    <dl class="account-info">
+      <dt>ログイン中</dt><dd id="account-email">—</dd>
+      <dt>保存先</dt><dd id="account-status">—</dd>
+    </dl>
+    <div class="migrate-box" id="migrate-box" hidden>
+      <p id="migrate-text"></p>
+      <button type="button" class="btn btn-primary" id="migrate-btn">この端末のデータをクラウドに移す</button>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-ghost" id="logout-btn">ログアウト</button>
+      <button type="button" class="btn btn-primary" id="account-close">閉じる</button>
+    </div>
+  </dialog>
 
   <main class="container">
     <!-- ==================== ホーム ==================== -->
@@ -304,6 +351,9 @@
 
   <!-- グラフ用ライブラリ（ネットに繋がっていないときは表だけ表示される） -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- クラウド保存（Supabase）用のライブラリと接続設定 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="js/config.js"></script>
   <!-- storage.js（データ層）→ categories.js → charts.js → subs.js → app.js（画面）の順で読み込む -->
   <script src="js/storage.js"></script>
   <script src="js/categories.js"></script>

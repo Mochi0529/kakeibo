@@ -82,6 +82,8 @@
   }
   async function runDueOnce() {
     subs = await subStore.list();
+    // クラウドを読めず端末の控えを表示しているときは、記録しない（あとでつながったときに記録する）
+    if (window.KakeiboSync.status === 'offline') return 0;
     const today = h.todayStr();
     let count = 0;
     for (const sub of subs) {
@@ -89,15 +91,19 @@
       const dates = dueDates(sub, today);
       if (dates.length === 0) continue;
       for (const date of dates) {
-        await expenseStore.add({
-          date,
-          amount: sub.amount,
-          category: sub.category,
-          memo: sub.name,
-          tags: [SUB_TAG],
-          subscriptionId: sub.id,
-        });
-        count++;
+        // ignoreDuplicate：スマホとPCが同時に開いていても、同じ回は1回しか記録しない
+        const added = await expenseStore.add(
+          {
+            date,
+            amount: sub.amount,
+            category: sub.category,
+            memo: sub.name,
+            tags: [SUB_TAG],
+            subscriptionId: sub.id,
+          },
+          { ignoreDuplicate: true }
+        );
+        if (added) count++;
       }
       await subStore.update(sub.id, { generatedUntil: dates[dates.length - 1] });
     }

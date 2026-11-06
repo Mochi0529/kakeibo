@@ -856,35 +856,209 @@
     }
   }
 
-  // 開いたままの日付が変わったときのため、画面に戻ってきたときにも確認する
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') recordDueSubscriptions();
-  });
-
   // 廃止したカテゴリのデータを一度だけ消す（終わったら記録して、次からは何もしない）
   // 新しく廃止するときは、ここに { id, category } を1行足す
   const RETIRED_CATEGORIES = [{ id: 'remove-housing-2026-11', category: '住居' }];
-  const MIGRATIONS_KEY = 'kakeibo.migrations';
+  const MIGRATIONS_KEY = 'kakeibo.migrations' + (window.KakeiboAuth.enabled ? '.cloud' : '');
   async function removeRetiredCategories() {
     let done = [];
     try { done = JSON.parse(localStorage.getItem(MIGRATIONS_KEY) || '[]'); } catch (e) { done = []; }
     for (const { id, category } of RETIRED_CATEGORIES) {
       if (done.includes(id)) continue;
-      await store.removeByCategory(category);
-      await window.SubscriptionStore.removeByCategory(category);
-      done.push(id);
+      try {
+        await store.removeByCategory(category);
+        await window.SubscriptionStore.removeByCategory(category);
+        done.push(id);
+      } catch (e) {
+        console.warn('廃止したカテゴリの削除は次回に持ち越します', e); // オフラインなど
+      }
     }
     try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(done)); } catch (e) { /* 次回また試すだけ */ }
   }
 
-  renderCategoryChips();
-  resetForm();
-  (async () => {
+  // ---------- ログイン・同期 ----------
+  const auth = window.KakeiboAuth;
+  const syncState = window.KakeiboSync;
+  const loginScreen = $('#login-screen');
+  const loginForm = $('#login-form');
+  const loginEmail = $('#login-email');
+  const loginPassword = $('#login-password');
+  const loginError = $('#login-error');
+  const loginSubmit = $('#login-submit');
+  const accountBtn = $('#account-btn');
+  const syncLabel = $('#sync-label');
+  const accountDialog = $('#account-dialog');
+  const offlineBanner = $('#offline-banner');
+  const migrateBox = $('#migrate-box');
+  const migrateText = $('#migrate-text');
+  const migrateBtn = $('#migrate-btn');
+  let currentUser = null;
+  let booted = false;
+
+  function isOffline() {
+    return auth.enabled && (syncState.status === 'offline' || !navigator.onLine);
+  }
+
+  function updateSyncUI() {
+    const offline = isOffline();
+    offlineBanner.hidden = !offline;
+    accountBtn.classList.toggle('offline', offline);
+    syncLabel.textContent = offline ? 'オフライン' : 'クラウド';
+    $('#account-status').textContent = offline ? 'クラウド（いまはオフライン。最後に読み込んだ内容を表示中）' : 'クラウド（スマホ・PCで同期）';
+  }
+  syncState.onChange(updateSyncUI);
+  window.addEventListener('offline', updateSyncUI);
+  window.addEventListener('online', () => {
+    updateSyncUI();
+    if (booted) reloadFromCloud();
+  });
+
+  function migratedKey() { return 'kakeibo.cloudMigrated.' + (currentUser ? currentUser.id : ''); }
+  function hasLocalDataToMigrate() {
+    if (!auth.enabled || !currentUser) return false;
+    try { if (localStorage.getItem(migratedKey())) return false; } catch (e) { return false; }
+    return syncState.localDataCount() > 0;
+  }
+
+  function openAccountDialog() {
+    $('#account-email').textContent = currentUser ? currentUser.email : '—';
+    updateSyncUI();
+    const show = hasLocalDataToMigrate();
+    migrateBox.hidden = !show;
+    if (show) {
+      migrateText.textContent =
+        'この端末には、クラウドに移していないデータが ' + syncState.localDataCount() +
+        '件（支出・サブスク）あります。クラウドに移すと、ほかの端末でも見られるようになります。';
+    }
+    if (typeof accountDialog.showModal === 'function') accountDialog.showModal();
+    else accountDialog.setAttribute('open', '');
+  }
+  function closeAccountDialog() {
+    if (typeof accountDialog.close === 'function') accountDialog.close();
+    else accountDialog.removeAttribute('open');
+  }
+
+  accountBtn.addEventListener('click', openAccountDialog);
+  $('#account-close').addEventListener('click', closeAccountDialog);
+
+  migrateBtn.addEventListener('click', async () => {
+    migrateBtn.disabled = true;
+    migrateBtn.textContent = '移しています…';
+    try {
+      await removeRetiredCategoriesLocal();
+      const n = await syncState.uploadLocalData();
+      localStorage.setItem(migratedKey(), new Date().toISOString());
+      closeAccountDialog();
+      await reloadFromCloud();
+      toast(n + '件をクラウドに移しました');
+    } catch (err) {
+      toast(err.message || '移せませんでした');
+    } finally {
+      migrateBtn.disabled = false;
+      migrateBtn.textContent = 'この端末のデータをクラウドに移す';
+    }
+  });
+
+  // 移す前に、端末に残っている廃止カテゴリ（住居）のデータを外しておく
+  async function removeRetiredCategoriesLocal() {
+    const retired = new Set(RETIRED_CATEGORIES.map((r) => r.category));
+    for (const key of ['kakeibo.expenses.v1', 'kakeibo.subscriptions.v1']) {
+      try {
+        const list = JSON.parse(localStorage.getItem(key) || '[]');
+        localStorage.setItem(key, JSON.stringify(list.filter((x) => !retired.has(x.category))));
+      } catch (e) { /* 読めなければそのまま */ }
+    }
+  }
+
+  $('#logout-btn').addEventListener('click', async () => {
+    if (!confirm('ログアウトしますか？\nこの端末に残っている控えも消えます（クラウドのデータは消えません）。')) return;
+    await auth.signOut();
+    location.hash = '';
+    location.reload();
+  });
+
+  function showLogin() {
+    document.body.classList.add('locked');
+    loginScreen.hidden = false;
+    setTimeout(() => loginEmail.focus(), 0);
+  }
+
+  loginForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    loginError.hidden = true;
+    if (!loginEmail.value || !loginPassword.value) {
+      loginError.textContent = 'メールアドレスとパスワードを入力してください';
+      loginError.hidden = false;
+      return;
+    }
+    loginSubmit.disabled = true;
+    loginSubmit.textContent = 'ログインしています…';
+    try {
+      await auth.signIn(loginEmail.value.trim(), loginPassword.value);
+      loginPassword.value = '';
+      await boot();
+    } catch (err) {
+      loginError.textContent = err.message;
+      loginError.hidden = false;
+    } finally {
+      loginSubmit.disabled = false;
+      loginSubmit.textContent = 'ログイン';
+    }
+  });
+
+  // クラウドから読み直す（ほかの端末での変更を取り込む）
+  async function reloadFromCloud() {
+    await subsUI.load();
+    await refresh();
+    await recordDueSubscriptions();
+  }
+
+  // 開いたままの日付が変わったときや、ほかの端末で入力したときのため、画面に戻ってきたら読み直す
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !booted) return;
+    if (auth.enabled) reloadFromCloud();
+    else recordDueSubscriptions();
+  });
+
+  // どこかで保存・削除に失敗したら、お知らせで伝える
+  window.addEventListener('unhandledrejection', (ev) => {
+    const msg = ev.reason && ev.reason.message;
+    if (msg) toast(msg);
+  });
+
+  // ---------- 起動 ----------
+  async function boot() {
+    if (auth.enabled) {
+      currentUser = await auth.getUser();
+      if (!currentUser) {
+        showLogin();
+        return;
+      }
+      accountBtn.hidden = false;
+    }
+    document.body.classList.remove('locked');
+    loginScreen.hidden = true;
+
     await removeRetiredCategories();
     await subsUI.load();
     await refresh();
     await recordDueSubscriptions();
+    booted = true;
+    updateSyncUI();
     const r = routeFromHash();
     showView(r.view, r.panel);
-  })();
+
+    // この端末に、まだクラウドに移していないデータがあれば案内する（端末ごとに1回）
+    if (hasLocalDataToMigrate()) {
+      const offeredKey = migratedKey() + '.offered';
+      if (!localStorage.getItem(offeredKey)) {
+        localStorage.setItem(offeredKey, '1');
+        openAccountDialog();
+      }
+    }
+  }
+
+  renderCategoryChips();
+  resetForm();
+  boot();
 })();
